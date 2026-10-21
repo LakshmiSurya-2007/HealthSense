@@ -45,7 +45,7 @@ function StatCard({ label, value, sub, icon: I, gradient, glow }: {
 }
 
 export function DashboardPage() {
-  const { user, profile, displayName, firstName } = useAuth()
+  const { user, displayName, firstName } = useAuth()
   const [preds, setPreds] = useState<SavedReportData[]>([])
   const [loading, setLoading] = useState(true)
 

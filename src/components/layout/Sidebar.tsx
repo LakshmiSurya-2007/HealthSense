@@ -29,7 +29,7 @@ interface Props {
 }
 
 export function Sidebar({ collapsed, onCollapse, mobileOpen, onMobileClose }: Props) {
-  const { user, profile, displayName, initials, signOut } = useAuth()
+  const { user, displayName, initials, signOut } = useAuth()
   const navigate = useNavigate()
   const handleSignOut = async () => { await signOut(); navigate('/') }
 
