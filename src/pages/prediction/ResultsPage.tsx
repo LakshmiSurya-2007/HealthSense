@@ -15,6 +15,7 @@ import {
 } from 'lucide-react'
 import { DoctorRecommendations } from '@/components/recommendations/DoctorRecommendations'
 import { getRecommendedProvidersForReport } from '@/data/sampleHealthcareProviders'
+import { generateHealthReportPdf } from '@/services/pdfReportService'
 
 interface ReportData {
   id: string
@@ -68,7 +69,7 @@ export function ResultsPage() {
   const { id } = useParams<{ id: string }>()
   const location = useLocation()
   const navigate = useNavigate()
-  const { user } = useAuth()
+  const { user, displayName } = useAuth()
 
   const [report, setReport] = useState<ReportData | null>(null)
   const [loading, setLoading] = useState(true)
@@ -210,61 +211,14 @@ export function ResultsPage() {
 
   function downloadReport() {
     if (!report) return
-
-    const inputLines = report.input ? [
-      '── SUBMITTED MEASUREMENTS ───────────',
-      `Age:                   ${report.input.age} years`,
-      `Gender:                ${report.input.gender}`,
-      `Height:                ${report.input.height_cm} cm`,
-      `Weight:                ${report.input.weight_kg} kg`,
-      `Calculated BMI:        ${report.input.bmi} kg/m² (${getBMICategory(report.input.bmi).label})`,
-      `Fasting Glucose:       ${report.input.glucose} mg/dL`,
-      `Blood Pressure:        ${report.input.blood_pressure_sys}/${report.input.blood_pressure_dia} mmHg`,
-      `Total Cholesterol:     ${report.input.cholesterol} mg/dL`,
-      `Resting Heart Rate:    ${report.input.heart_rate} bpm`,
-      `Smoking Status:        ${report.input.smoking_status}`,
-      `Alcohol Consumption:   ${report.input.alcohol_consumption}`,
-      `Physical Activity:     ${report.input.physical_activity}`,
-      `Sleep Duration:        ${report.input.sleep_hours} hrs/night`,
-      '',
-    ] : []
-
-    const txt = [
-      '══════════════════════════════════════════════════',
-      '      HEALTHSENSE AI — HEALTH RISK REPORT         ',
-      '══════════════════════════════════════════════════',
-      `Report ID:  ${report.id}`,
-      `Generated:  ${new Date(report.created_at).toLocaleString()}`,
-      '',
-      ...inputLines,
-      '── ESTIMATED RISK SCORES ────────────────────────',
-      `Overall Health Score:  ${report.health_score}/100`,
-      `Overall Risk Level:    ${report.risk_level.toUpperCase()}`,
-      `Diabetes Risk:         ${report.diabetes_risk}%`,
-      `Cardiovascular Risk:   ${report.heart_risk}%`,
-      `Hypertension Risk:     ${report.hypertension_risk}%`,
-      `Kidney Disease Risk:   ${report.kidney_risk}%`,
-      '',
-      '── TAILORED RECOMMENDATIONS ─────────────────────',
-      ...(report.recommendations ?? []).map((r, i) => `${i + 1}. ${r}`),
-      '',
-      '── IMPORTANT LIMITATIONS & DISCLAIMER ──────────',
-      'This report is an educational risk-estimation prototype',
-      'calculated from lifestyle factors and preventive health',
-      'guidelines. It is NOT a medically validated clinical',
-      'diagnostic device and cannot replace evaluation by a doctor.',
-      'Always consult a qualified healthcare professional.',
-      '',
-      '          HealthSense AI • Preventive Health Engine',
-    ].join('\n')
-
-    const blob = new Blob([txt], { type: 'text/plain;charset=utf-8' })
-    const a = document.createElement('a')
-    a.href = URL.createObjectURL(blob)
-    a.download = `HealthSense-Report-${new Date(report.created_at).toISOString().slice(0, 10)}.txt`
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
+    try {
+      generateHealthReportPdf(report, {
+        patientName: displayName && displayName !== 'My Account' ? displayName : undefined
+      })
+    } catch (err: any) {
+      console.error('Failed to generate PDF report:', err)
+      setSaveError(err.message || 'Could not generate PDF report.')
+    }
   }
 
   if (loading) {

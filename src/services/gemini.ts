@@ -28,8 +28,17 @@ export async function askGemini(messages: ChatMessage[], reportContext?: any): P
     })
 
     if (!res.ok) {
-      const errData = await res.json().catch(() => ({ error: `Server returned HTTP ${res.status}` }))
-      throw new Error(errData.error || `AI Chat request failed with status ${res.status}`)
+      let errorMsg = `Server returned HTTP ${res.status}`
+      try {
+        const errData = await res.json()
+        if (errData?.error) errorMsg = errData.error
+      } catch {
+        const text = await res.text().catch(() => '')
+        if (text && text.length < 300 && !text.includes('<!DOCTYPE') && !text.includes('<html')) {
+          errorMsg = text.trim()
+        }
+      }
+      throw new Error(errorMsg || `AI Chat request failed with status ${res.status}`)
     }
 
     const data = await res.json()
@@ -64,8 +73,17 @@ export async function analyzeImageWithGemini(
     })
 
     if (!res.ok) {
-      const errData = await res.json().catch(() => ({ error: `Server returned HTTP ${res.status}` }))
-      throw new Error(errData.error || `Image analysis failed with status ${res.status}`)
+      let errorMsg = `Server returned HTTP ${res.status}`
+      try {
+        const errData = await res.json()
+        if (errData?.error) errorMsg = errData.error
+      } catch {
+        const text = await res.text().catch(() => '')
+        if (text && text.length < 300 && !text.includes('<!DOCTYPE') && !text.includes('<html')) {
+          errorMsg = text.trim()
+        }
+      }
+      throw new Error(errorMsg || `Image analysis failed with status ${res.status}`)
     }
 
     const data = await res.json()

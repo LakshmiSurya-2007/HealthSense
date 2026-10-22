@@ -33,6 +33,39 @@ export function Navbar() {
         { to: '/#faq', label: 'FAQ' },
       ]
 
+  const handleNavClick = (e: React.MouseEvent<HTMLAnchorElement>, to: string) => {
+    if (to.startsWith('/#')) {
+      const hash = to.slice(1)
+      const id = hash.replace('#', '')
+      if (location.pathname === '/') {
+        e.preventDefault()
+        const el = document.getElementById(id)
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth' })
+          window.history.pushState(null, '', hash)
+        }
+      }
+    }
+  }
+
+  const handleMobileNavClick = (e: React.MouseEvent<HTMLAnchorElement>, to: string) => {
+    setOpen(false)
+    if (to.startsWith('/#')) {
+      const hash = to.slice(1)
+      const id = hash.replace('#', '')
+      if (location.pathname === '/') {
+        e.preventDefault()
+        setTimeout(() => {
+          const el = document.getElementById(id)
+          if (el) {
+            el.scrollIntoView({ behavior: 'smooth' })
+            window.history.pushState(null, '', hash)
+          }
+        }, 150)
+      }
+    }
+  }
+
   return (
     <motion.nav
       initial={{ y: -80, opacity: 0 }}
@@ -59,6 +92,7 @@ export function Navbar() {
             <Link
               key={l.to}
               to={l.to}
+              onClick={(e) => handleNavClick(e, l.to)}
               className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
                 location.pathname === l.to
                   ? 'text-white bg-white/10'
@@ -93,7 +127,7 @@ export function Navbar() {
         </div>
 
         {/* Mobile hamburger */}
-        <button onClick={() => setOpen(p => !p)} className="md:hidden p-2 rounded-lg glass text-white">
+        <button onClick={() => setOpen(p => !p)} className="md:hidden p-2 rounded-lg glass text-white" aria-label="Toggle menu">
           {open ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
         </button>
       </div>
@@ -109,8 +143,12 @@ export function Navbar() {
           >
             <div className="pt-4 space-y-1">
               {links.map(l => (
-                <Link key={l.to} to={l.to}
-                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-white/80 hover:text-white hover:bg-white/08 transition-all text-sm font-medium">
+                <Link
+                  key={l.to}
+                  to={l.to}
+                  onClick={(e) => handleMobileNavClick(e, l.to)}
+                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-white/80 hover:text-white hover:bg-white/08 transition-all text-sm font-medium"
+                >
                   {l.label}
                 </Link>
               ))}
@@ -120,8 +158,8 @@ export function Navbar() {
                 </button>
               ) : (
                 <div className="flex gap-3 pt-2">
-                  <Link to="/login" className="flex-1 btn-secondary py-2 text-sm text-center">Sign In</Link>
-                  <Link to="/signup" className="flex-1 btn-gradient py-2 text-sm text-center">Get Started</Link>
+                  <Link to="/login" onClick={() => setOpen(false)} className="flex-1 btn-secondary py-2 text-sm text-center">Sign In</Link>
+                  <Link to="/signup" onClick={() => setOpen(false)} className="flex-1 btn-gradient py-2 text-sm text-center">Get Started</Link>
                 </div>
               )}
             </div>

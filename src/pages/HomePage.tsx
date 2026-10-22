@@ -1,6 +1,6 @@
-import { useState } from 'react'
-import { Link } from 'react-router-dom'
-import { motion } from 'framer-motion'
+import { useState, useEffect } from 'react'
+import { Link, useLocation } from 'react-router-dom'
+import { motion, AnimatePresence } from 'framer-motion'
 import {
   Brain, Heart, Droplets, Activity,
   Shield, Zap, BarChart3, Lock,
@@ -53,35 +53,62 @@ const FAQ = [
 function FaqItem({ q, a }: { q: string; a: string }) {
   const [open, setOpen] = useState(false)
   return (
-    <motion.div
-      className="glass glass-hover rounded-2xl overflow-hidden cursor-pointer"
+    <div
+      className="glass glass-hover rounded-2xl overflow-hidden cursor-pointer transition-colors"
       onClick={() => setOpen(p => !p)}
+      role="button"
+      tabIndex={0}
+      aria-expanded={open}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          setOpen(p => !p)
+        }
+      }}
     >
-      <div className="flex items-center justify-between p-5">
+      <div className="flex items-center justify-between p-5 select-none">
         <p className="text-white font-semibold text-sm pr-4">{q}</p>
         {open ? <ChevronUp className="w-5 h-5 text-primary flex-shrink-0" /> : <ChevronDown className="w-5 h-5 text-white/40 flex-shrink-0" />}
       </div>
-      <AnimateHeight open={open}>
-        <p className="px-5 pb-5 text-white/60 text-sm leading-relaxed">{a}</p>
-      </AnimateHeight>
-    </motion.div>
-  )
-}
-
-function AnimateHeight({ open, children }: { open: boolean; children: React.ReactNode }) {
-  return (
-    <motion.div
-      initial={false}
-      animate={{ height: open ? 'auto' : 0, opacity: open ? 1 : 0 }}
-      transition={{ duration: 0.3 }}
-      style={{ overflow: 'hidden' }}
-    >
-      {children}
-    </motion.div>
+      <AnimatePresence initial={false}>
+        {open && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.25, ease: 'easeInOut' }}
+            className="overflow-hidden"
+          >
+            <p className="px-5 pb-5 text-white/60 text-sm leading-relaxed">{a}</p>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
   )
 }
 
 export function HomePage() {
+  const location = useLocation()
+
+  useEffect(() => {
+    if (location.hash) {
+      const id = location.hash.replace('#', '')
+      const el = document.getElementById(id)
+      if (el) {
+        setTimeout(() => {
+          el.scrollIntoView({ behavior: 'smooth' })
+        }, 80)
+      }
+    }
+  }, [location.hash])
+
+  const scrollToSection = (id: string) => {
+    const el = document.getElementById(id)
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth' })
+      window.history.pushState(null, '', `#${id}`)
+    }
+  }
   return (
     <>
       {/* Hero */}
@@ -118,9 +145,16 @@ export function HomePage() {
               <Link to="/signup" className="btn-gradient px-8 py-3.5 text-base">
                 <Sparkles className="w-5 h-5" /> Start Free Assessment
               </Link>
-              <Link to="/#how" className="btn-secondary px-8 py-3.5 text-base">
+              <a
+                href="#how"
+                onClick={(e) => {
+                  e.preventDefault()
+                  scrollToSection('how')
+                }}
+                className="btn-secondary px-8 py-3.5 text-base inline-flex items-center justify-center gap-2"
+              >
                 See How It Works <ArrowRight className="w-4 h-4" />
-              </Link>
+              </a>
             </motion.div>
 
             {/* Risk cards preview */}
@@ -163,7 +197,7 @@ export function HomePage() {
       </section>
 
       {/* Features */}
-      <section id="features" className="section">
+      <section id="features" className="section scroll-mt-20">
         <div className="container px-6">
           <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="text-center mb-14">
             <p className="text-primary font-semibold text-sm uppercase tracking-widest mb-3">Features</p>
@@ -188,7 +222,7 @@ export function HomePage() {
       </section>
 
       {/* How it works */}
-      <section id="how" className="section border-t border-white/06">
+      <section id="how" className="section border-t border-white/06 scroll-mt-20">
         <div className="container px-6">
           <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="text-center mb-14">
             <p className="text-secondary font-semibold text-sm uppercase tracking-widest mb-3">How It Works</p>
@@ -246,7 +280,7 @@ export function HomePage() {
       </section>
 
       {/* FAQ */}
-      <section id="faq" className="section border-t border-white/06">
+      <section id="faq" className="section border-t border-white/06 scroll-mt-20">
         <div className="container px-6">
           <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="text-center mb-14">
             <p className="text-secondary font-semibold text-sm uppercase tracking-widest mb-3">FAQ</p>

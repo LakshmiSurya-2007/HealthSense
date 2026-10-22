@@ -27,6 +27,9 @@ interface HistoryItem {
   condition_name: string | null
   confidence: number | null
   created_at: string
+  full_result?: AnalysisResult
+  image_preview?: string | null
+  image_size?: number | null
 }
 
 const ALLOWED = ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
@@ -56,6 +59,8 @@ export function AnalyzePage() {
   const [history, setHistory] = useState<HistoryItem[]>([])
   const [showHistory, setShowHistory] = useState(false)
   const [historyLoaded, setHistoryLoaded] = useState(false)
+  const [selectedAnalysis, setSelectedAnalysis] = useState<HistoryItem | null>(null)
+  const [historyError, setHistoryError] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
   const handleFile = useCallback((f: File) => {
@@ -124,6 +129,7 @@ export function AnalyzePage() {
               recommendations: parsed.recommendations,
               doctorAdvice: parsed.doctorAdvice,
               image_size: file.size,
+              image_preview: preview && preview.length < 1500000 ? preview : undefined,
               raw_response: raw,
             },
           })
@@ -157,34 +163,63 @@ export function AnalyzePage() {
     }
 
     try {
+      setHistoryError(null)
       const { data, error: fetchErr } = await supabase
         .from('image_analyses')
         .select('id, image_path, analysis_result, created_at')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false })
-        .limit(10)
+        .limit(20)
 
       if (fetchErr) {
         console.warn('Failed to load analysis history:', fetchErr.message)
+        setHistoryError('Could not load previous analyses.')
       } else if (data) {
         const mapped: HistoryItem[] = data.map((item: any) => {
           const res = (item.analysis_result && typeof item.analysis_result === 'object') ? item.analysis_result : {}
+          const condition = res.condition || 'Visual Assessment'
+          const confidence = typeof res.confidence === 'number' ? res.confidence : null
+          const description = res.description || 'Visual observation completed.'
+          const causes = Array.isArray(res.causes) ? res.causes : []
+          const recommendations = Array.isArray(res.recommendations) ? res.recommendations : []
+          const doctorAdvice = res.doctorAdvice || res.doctor_advice || 'Please consult a board-certified dermatologist for clinical guidance.'
+
           return {
             id: item.id,
             image_name: item.image_path || 'Uploaded Image',
-            condition_name: res.condition || 'Visual Assessment',
-            confidence: typeof res.confidence === 'number' ? res.confidence : null,
+            condition_name: condition,
+            confidence,
             created_at: item.created_at,
+            image_preview: res.image_preview || null,
+            image_size: res.image_size || null,
+            full_result: {
+              condition,
+              confidence: confidence ?? 50,
+              description,
+              causes,
+              recommendations,
+              doctorAdvice,
+            }
           }
         })
         setHistory(mapped)
         setHistoryLoaded(true)
       }
       setShowHistory(true)
-    } catch (err) {
+    } catch (err: any) {
       console.warn('Failed to load analysis history:', err)
+      setHistoryError('Could not load previous analyses.')
       setShowHistory(true)
     }
+  }
+
+  function handleViewAnalysis(item: HistoryItem) {
+    if (!item.full_result) {
+      setHistoryError('Unable to load saved analysis details for this record.')
+      return
+    }
+    setHistoryError(null)
+    setSelectedAnalysis(item)
   }
 
   const clarityColor = !result ? '#9333EA' : result.confidence >= 70 ? '#10b981' : result.confidence >= 40 ? '#f59e0b' : '#06b6d4'
@@ -427,6 +462,12 @@ export function AnalyzePage() {
           {showHistory && (
             <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}
               className="overflow-hidden border-t border-white/06">
+              {historyError && (
+                <div className="p-3 mx-5 my-2 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                  <span>{historyError}</span>
+                </div>
+              )}
               {!user ? (
                 <div className="p-6 text-center text-xs text-white/40">
                   Please sign in to view and save your previous image analyses.
@@ -439,20 +480,34 @@ export function AnalyzePage() {
               ) : (
                 <div className="divide-y divide-white/04">
                   {history.map(h => (
-                    <div key={h.id} className="flex items-center gap-4 px-5 py-3.5 hover:bg-white/02 transition-colors">
-                      <div className="w-8 h-8 rounded-lg bg-primary/15 flex items-center justify-center flex-shrink-0">
-                        <ImageIcon className="w-4 h-4 text-primary" />
+                    <div key={h.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-5 py-3.5 hover:bg-white/02 transition-colors">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-8 h-8 rounded-lg bg-primary/15 flex items-center justify-center flex-shrink-0">
+                          <ImageIcon className="w-4 h-4 text-primary" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-white/85 text-sm font-semibold truncate">{h.condition_name ?? 'Visual Observation'}</p>
+                          <p className="text-white/35 text-xs truncate">{h.image_name ?? 'Image'}</p>
+                        </div>
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-white/75 text-sm font-medium truncate">{h.condition_name ?? 'Visual Observation'}</p>
-                        <p className="text-white/35 text-xs truncate">{h.image_name ?? 'Image'}</p>
+
+                      <div className="flex items-center gap-3 sm:self-center self-end flex-shrink-0">
+                        {h.confidence != null && (
+                          <span className="text-xs font-bold text-white/60 px-2 py-0.5 rounded bg-white/06">
+                            {h.confidence}%
+                          </span>
+                        )}
+                        <span className="text-white/30 text-xs flex-shrink-0">
+                          {new Date(h.created_at).toLocaleDateString()}
+                        </span>
+                        <button
+                          onClick={() => handleViewAnalysis(h)}
+                          className="btn-secondary px-3 py-1.5 text-xs flex items-center gap-1 font-medium hover:border-primary/40 transition-colors"
+                          title="View saved analysis details"
+                        >
+                          View
+                        </button>
                       </div>
-                      {h.confidence != null && (
-                        <span className="text-xs font-bold text-white/50">{h.confidence}%</span>
-                      )}
-                      <span className="text-white/30 text-xs flex-shrink-0">
-                        {new Date(h.created_at).toLocaleDateString()}
-                      </span>
                     </div>
                   ))}
                 </div>
@@ -461,6 +516,195 @@ export function AnalyzePage() {
           )}
         </AnimatePresence>
       </div>
+
+      {/* Saved Analysis Modal */}
+      <AnimatePresence>
+        {selectedAnalysis && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm overflow-y-auto">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 16 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 16 }}
+              className="glass-card max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6 space-y-4 shadow-2xl border border-white/10 my-8"
+            >
+              {/* Modal Header */}
+              <div className="flex items-start justify-between gap-3 border-b border-white/08 pb-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center text-primary">
+                    <Brain className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-white font-black text-lg">Saved Medical Image Analysis</h3>
+                    <p className="text-white/40 text-xs">
+                      Recorded on {new Date(selectedAnalysis.created_at).toLocaleString()} • {selectedAnalysis.image_name}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setSelectedAnalysis(null)}
+                  className="p-1.5 rounded-lg text-white/50 hover:text-white hover:bg-white/10 transition-colors"
+                  aria-label="Close"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Image Preview if available */}
+              {selectedAnalysis.image_preview ? (
+                <div className="rounded-xl overflow-hidden bg-black/40 border border-white/08 max-h-64 flex items-center justify-center">
+                  <img
+                    src={selectedAnalysis.image_preview}
+                    alt={selectedAnalysis.image_name || 'Saved Analysis Preview'}
+                    className="max-h-64 object-contain w-full"
+                  />
+                </div>
+              ) : (
+                <div className="p-3 rounded-xl bg-white/03 border border-white/06 flex items-center gap-2.5 text-xs text-white/60">
+                  <ImageIcon className="w-4 h-4 text-primary flex-shrink-0" />
+                  <span>Image Reference: <strong>{selectedAnalysis.image_name}</strong></span>
+                </div>
+              )}
+
+              {/* Condition & Clarity */}
+              <div>
+                <div className="flex items-start justify-between gap-3 mb-2">
+                  <div>
+                    <p className="text-white/40 text-[10px] uppercase tracking-widest mb-1">Identified Observation</p>
+                    <h4 className="text-white font-black text-xl leading-tight">
+                      {selectedAnalysis.full_result?.condition}
+                    </h4>
+                  </div>
+                  <div className="w-9 h-9 rounded-xl bg-primary/15 flex items-center justify-center flex-shrink-0">
+                    <Stethoscope className="w-4 h-4 text-primary" />
+                  </div>
+                </div>
+
+                {selectedAnalysis.full_result && typeof selectedAnalysis.full_result.confidence === 'number' && (
+                  <div className="mb-2">
+                    <div className="flex justify-between text-xs mb-1">
+                      <span className="text-white/50 text-[11px]">Visual Feature Clarity</span>
+                      <span className="font-bold text-[11px] text-primary">
+                        {selectedAnalysis.full_result.confidence}%
+                      </span>
+                    </div>
+                    <ClarityBar
+                      value={selectedAnalysis.full_result.confidence}
+                      color={
+                        selectedAnalysis.full_result.confidence >= 70
+                          ? '#10b981'
+                          : selectedAnalysis.full_result.confidence >= 40
+                          ? '#f59e0b'
+                          : '#06b6d4'
+                      }
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* Observations Description */}
+              {selectedAnalysis.full_result?.description && (
+                <div>
+                  <p className="text-white/50 text-[10px] uppercase tracking-wider mb-1 flex items-center gap-1.5 font-bold">
+                    <ImageIcon className="w-3 h-3 text-secondary" /> Visual Observations
+                  </p>
+                  <p className="text-white/80 text-xs leading-relaxed bg-white/02 p-3 rounded-xl border border-white/04">
+                    {selectedAnalysis.full_result.description}
+                  </p>
+                </div>
+              )}
+
+              {/* Possible Causes / Triggers */}
+              {selectedAnalysis.full_result?.causes && selectedAnalysis.full_result.causes.length > 0 && (
+                <div>
+                  <p className="text-white/50 text-[10px] uppercase tracking-wider mb-1.5 flex items-center gap-1.5 font-bold">
+                    <AlertTriangle className="w-3 h-3 text-amber-400" /> Possible Triggers & Contributing Factors
+                  </p>
+                  <ul className="space-y-1">
+                    {selectedAnalysis.full_result.causes.map((c, i) => (
+                      <li key={i} className="flex items-start gap-2 text-xs text-white/70">
+                        <span className="w-1.5 h-1.5 rounded-full bg-primary mt-1.5 flex-shrink-0" />
+                        <span>{c}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* Recommendations */}
+              {selectedAnalysis.full_result?.recommendations && selectedAnalysis.full_result.recommendations.length > 0 && (
+                <div>
+                  <p className="text-white/50 text-[10px] uppercase tracking-wider mb-1.5 flex items-center gap-1.5 font-bold">
+                    <Lightbulb className="w-3 h-3 text-emerald-400" /> Evidence-Based Care Recommendations
+                  </p>
+                  <ul className="space-y-1.5">
+                    {selectedAnalysis.full_result.recommendations.map((r, i) => (
+                      <li key={i} className="flex items-start gap-2 text-xs text-white/75">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0 mt-0.5" />
+                        <span>{r}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* Consultation Guidance */}
+              {selectedAnalysis.full_result?.doctorAdvice && (
+                <div className="p-3.5 rounded-xl bg-primary/08 border border-primary/20">
+                  <p className="text-white/60 text-[10px] uppercase tracking-wider mb-1 flex items-center gap-1.5 font-bold">
+                    <Stethoscope className="w-3.5 h-3.5 text-secondary" /> Medical Consultation Guidance
+                  </p>
+                  <p className="text-white/80 text-xs leading-relaxed">
+                    {selectedAnalysis.full_result.doctorAdvice}
+                  </p>
+                </div>
+              )}
+
+              {/* Doctor Recommendations */}
+              {selectedAnalysis.full_result?.condition && (
+                <div className="pt-2">
+                  <DoctorRecommendations
+                    groups={getRecommendedProvidersForImageAnalysis(selectedAnalysis.full_result.condition).groups}
+                    hasConcerningRisks={true}
+                    summaryMessage={getRecommendedProvidersForImageAnalysis(selectedAnalysis.full_result.condition).summaryMessage}
+                  />
+                </div>
+              )}
+
+              {/* Medical Disclaimer */}
+              <div className="p-3 rounded-xl bg-amber-500/08 border border-amber-500/18 flex items-start gap-2 text-[11px] text-amber-300/80 leading-relaxed">
+                <ShieldAlert className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
+                <span>
+                  <strong>Medical Disclaimer:</strong> This saved visual analysis is for educational purposes only and is not a medical diagnosis. Always consult a board-certified dermatologist or qualified healthcare provider for clinical evaluation.
+                </span>
+              </div>
+
+              {/* Modal Footer */}
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-white/06">
+                <button
+                  onClick={() => {
+                    if (selectedAnalysis.full_result) {
+                      setResult(selectedAnalysis.full_result)
+                      setPreview(selectedAnalysis.image_preview || null)
+                      setFile(selectedAnalysis.image_name ? ({ name: selectedAnalysis.image_name } as any) : null)
+                      setSelectedAnalysis(null)
+                      window.scrollTo({ top: 0, behavior: 'smooth' })
+                    }
+                  }}
+                  className="btn-gradient px-4 py-2 text-xs flex items-center gap-1.5 w-full sm:w-auto justify-center"
+                >
+                  <Brain className="w-3.5 h-3.5" /> Load into Main View
+                </button>
+                <button
+                  onClick={() => setSelectedAnalysis(null)}
+                  className="btn-secondary px-5 py-2 text-xs w-full sm:w-auto justify-center"
+                >
+                  Close
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }

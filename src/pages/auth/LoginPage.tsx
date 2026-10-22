@@ -55,7 +55,7 @@ export function LoginPage() {
               <div className="relative">
                 <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30" />
                 <input className="input-dark pl-10" type="email" required placeholder="you@example.com"
-                  value={email} onChange={e => setEmail(e.target.value)} />
+                  autoComplete="username" value={email} onChange={e => setEmail(e.target.value)} />
               </div>
             </div>
             <div>
@@ -66,7 +66,7 @@ export function LoginPage() {
               <div className="relative">
                 <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30" />
                 <input className="input-dark pl-10 pr-10" type={show ? 'text' : 'password'} required placeholder="••••••••"
-                  value={pw} onChange={e => setPw(e.target.value)} />
+                  autoComplete="current-password" value={pw} onChange={e => setPw(e.target.value)} />
                 <button type="button" onClick={() => setShow(p => !p)}
                   className="absolute right-3.5 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/60 transition-colors">
                   {show ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}

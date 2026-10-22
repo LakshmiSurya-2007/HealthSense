@@ -3,14 +3,16 @@ import { motion } from 'framer-motion'
 import { useAuth } from '@/context/AuthContext'
 import { listUserAssessments } from '@/services/assessmentService'
 import type { SavedReportData } from '@/services/assessmentService'
-import { FileText, Download, Clock, Brain, Activity, Bot } from 'lucide-react'
+import { FileText, Download, Clock, Brain, Activity, Bot, AlertCircle } from 'lucide-react'
 import { Spinner } from '@/components/ui/Spinner'
 import { Link } from 'react-router-dom'
+import { generateHealthReportPdf } from '@/services/pdfReportService'
 
 export function ReportsPage() {
   const { user, displayName } = useAuth()
   const [reports, setReports] = useState<SavedReportData[]>([])
   const [loading, setLoading] = useState(true)
+  const [downloadErr, setDownloadErr] = useState<string | null>(null)
 
   useEffect(() => {
     if (!user) {
@@ -29,34 +31,15 @@ export function ReportsPage() {
   }, [user])
 
   function download(pred: SavedReportData) {
-    const txt = [
-      '══════════════════════════════════════',
-      '      HEALTHSENSE AI — HEALTH REPORT  ',
-      '══════════════════════════════════════',
-      ...(displayName && displayName !== 'My Account' ? [`Patient / User:      ${displayName}`] : []),
-      `Generated:           ${new Date(pred.created_at).toLocaleString()}`,
-      `Report ID:           ${pred.id}`,
-      '',
-      '── RISK SCORES ──────────────────────',
-      `Diabetes Risk:       ${pred.diabetes_risk}%`,
-      `Heart Disease Risk:  ${pred.heart_risk}%`,
-      `Hypertension Risk:   ${pred.hypertension_risk}%`,
-      `Kidney Disease Risk: ${pred.kidney_risk}%`,
-      `Health Score:        ${pred.health_score}/100`,
-      `Risk Level:          ${pred.risk_level.toUpperCase()}`,
-      '',
-      '── AI RECOMMENDATIONS ───────────────',
-      ...(pred.recommendations ?? []).map((r: string, i: number) => `${i + 1}. ${r}`),
-      '',
-      '── DISCLAIMER ───────────────────────',
-      'For educational purposes only. Not medical advice.',
-      '    HealthSense AI',
-    ].join('\n')
-    const blob = new Blob([txt], { type: 'text/plain' })
-    const a = document.createElement('a')
-    a.href = URL.createObjectURL(blob)
-    a.download = `healthsense-${new Date(pred.created_at).toISOString().slice(0, 10)}.txt`
-    document.body.appendChild(a); a.click(); document.body.removeChild(a)
+    try {
+      setDownloadErr(null)
+      generateHealthReportPdf(pred, {
+        patientName: displayName && displayName !== 'My Account' ? displayName : undefined
+      })
+    } catch (err: any) {
+      console.error('Failed to generate PDF:', err)
+      setDownloadErr(err.message || 'Unable to generate PDF report. Please try again.')
+    }
   }
 
   return (
@@ -70,6 +53,13 @@ export function ReportsPage() {
           Download {displayName && displayName !== 'My Account' ? `${displayName}’s` : 'your'} past health assessment reports or ask AI about any report.
         </p>
       </motion.div>
+
+      {downloadErr && (
+        <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs flex items-center gap-2">
+          <AlertCircle className="w-4 h-4 flex-shrink-0" />
+          <span>{downloadErr}</span>
+        </div>
+      )}
 
       {loading ? (
         <div className="flex justify-center py-12"><Spinner size={32} className="text-primary" /></div>
